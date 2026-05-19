@@ -1,9 +1,11 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
@@ -56,4 +58,6 @@ async def update_task(
         raise HTTPException(status_code=404, detail="Задача не найдена")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
+    if task.status == TaskStatus.DONE and not task.completed_at:
+        task.completed_at = datetime.utcnow()
     return task
