@@ -61,3 +61,15 @@ async def update_task(
     if task.status == TaskStatus.DONE and not task.completed_at:
         task.completed_at = datetime.utcnow()
     return task
+
+
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    await db.delete(task)
