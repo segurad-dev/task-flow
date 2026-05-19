@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError
 
 from app.schemas.user import Token, UserCreate, UserRead
 
@@ -58,3 +59,25 @@ async def login(
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     return Token(access_token=create_access_token(user.id))
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
+) -> User:
+    error = HTTPException(
+        status_code=401,
+        detail="Невалидный токен",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = int(payload["sub"])
+    except (JWTError, KeyError, ValueError):
+        raise error
+    user = await db.get(User, user_id)
+    if not user:
+        raise error
+    return user
