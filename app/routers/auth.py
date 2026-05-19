@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserRead
+from fastapi.security import OAuth2PasswordRequestForm
+
+from app.schemas.user import Token, UserCreate, UserRead
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -46,3 +48,13 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
     return user
+
+
+@router.post("/login", response_model=Token)
+async def login(
+    form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+):
+    user = await db.scalar(select(User).where(User.email == form.username))
+    if not user or not verify_password(form.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Неверный email или пароль")
+    return Token(access_token=create_access_token(user.id))
