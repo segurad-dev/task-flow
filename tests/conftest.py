@@ -36,3 +36,16 @@ async def client(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def auth_client(client):
+    await client.post(
+        "/auth/register",
+        json={"email": "auto@test.com", "username": "auto", "password": "autopass"},
+    )
+    r = await client.post(
+        "/auth/login", data={"username": "auto@test.com", "password": "autopass"}
+    )
+    client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+    return client
