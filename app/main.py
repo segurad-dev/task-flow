@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 
-from app.routers import auth, tasks
+from app.routers import auth, projects, tasks
 
 app = FastAPI(title="Task Flow", version="1.0.0")
 
 app.include_router(auth.router)
+app.include_router(projects.router)
 app.include_router(tasks.router)
 
 
