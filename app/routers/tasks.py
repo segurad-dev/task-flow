@@ -21,3 +21,12 @@ async def create_task(
     db.add(task)
     await db.flush()
     return task
+
+
+@router.get("/", response_model=list[TaskRead])
+async def get_tasks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Task).where(Task.assignee_id == current_user.id))
+    return result.scalars().all()
