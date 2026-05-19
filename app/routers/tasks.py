@@ -30,3 +30,15 @@ async def get_tasks(
 ):
     result = await db.execute(select(Task).where(Task.assignee_id == current_user.id))
     return result.scalars().all()
+
+
+@router.get("/{task_id}", response_model=TaskRead)
+async def get_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    return task
