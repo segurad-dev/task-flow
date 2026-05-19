@@ -29,3 +29,15 @@ async def test_delete_task(auth_client):
     ).json()["id"]
     assert (await auth_client.delete(f"/tasks/{task_id}")).status_code == 204
     assert (await auth_client.get(f"/tasks/{task_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_task_no_auth(client):
+    assert (
+        await client.post("/tasks/", json={"title": "T", "project_id": 1})
+    ).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_no_auth(client):
+    assert (await client.get("/tasks/")).status_code == 401
