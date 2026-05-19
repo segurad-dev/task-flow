@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.task import Task
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.task import TaskCreate, TaskRead
+from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -41,4 +41,19 @@ async def get_task(
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
+    return task
+
+
+@router.patch("/{task_id}", response_model=TaskRead)
+async def update_task(
+    task_id: int,
+    data: TaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(task, field, value)
     return task
