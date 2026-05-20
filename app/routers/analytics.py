@@ -46,3 +46,18 @@ async def project_stats(
         "completion_rate": round(row.done / row.total * 100, 1) if row.total else 0,
         "avg_completion_hours": round(avg_seconds / 3600, 1),
     }
+
+
+@router.get("/me")
+async def my_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(
+            func.count(Task.id).label("total"),
+            func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+        ).where(Task.assignee_id == current_user.id)
+    )
+    row = result.one()
+    return {"user_id": current_user.id, "total_assigned": row.total, "completed": row.done}
