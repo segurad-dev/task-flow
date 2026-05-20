@@ -1,9 +1,11 @@
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cache import redis_client
 from app.database import get_db
 from app.models.task import Task, TaskStatus
 from app.models.user import User
@@ -30,8 +32,15 @@ async def get_tasks(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cache_key = f"tasks:{current_user.id}"
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
     result = await db.execute(select(Task).where(Task.assignee_id == current_user.id))
-    return result.scalars().all()
+    tasks = result.scalars().all()
+    data = [TaskRead.model_validate(t).model_dump(mode="json") for t in tasks]
+    await redis_client.setex(cache_key, 60, json.dumps(data))
+    return tasks
 
 
 @router.get("/{task_id}", response_model=TaskRead)
