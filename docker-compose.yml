@@ -45,5 +45,14 @@ services:
     volumes:
       - .:/app
 
+  celery_beat:
+    build: .
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    env_file: .env
+    depends_on:
+      - rabbitmq
+    volumes:
+      - .:/app
+
 volumes:
   postgres_data:
