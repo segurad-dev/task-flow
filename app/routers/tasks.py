@@ -24,6 +24,7 @@ async def create_task(
     task = Task(**data.model_dump())
     db.add(task)
     await db.flush()
+    await redis_client.delete(f"tasks:{current_user.id}")
     return task
 
 
@@ -69,6 +70,7 @@ async def update_task(
         setattr(task, field, value)
     if task.status == TaskStatus.DONE and not task.completed_at:
         task.completed_at = datetime.utcnow()
+    await redis_client.delete(f"tasks:{current_user.id}")
     return task
 
 
@@ -82,3 +84,4 @@ async def delete_task(
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
     await db.delete(task)
+    await redis_client.delete(f"tasks:{current_user.id}")
