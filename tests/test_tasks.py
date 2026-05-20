@@ -41,3 +41,11 @@ async def test_create_task_no_auth(client):
 @pytest.mark.asyncio
 async def test_get_tasks_no_auth(client):
     assert (await client.get("/tasks/")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_cache_invalidated_after_create(auth_client):
+    await auth_client.get("/tasks/")
+    await auth_client.post("/tasks/", json={"title": "Новая", "project_id": 1})
+    r = await auth_client.get("/tasks/")
+    assert any(t["title"] == "Новая" for t in r.json())
