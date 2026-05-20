@@ -25,6 +25,18 @@ async def project_stats(
         ).where(Task.project_id == project_id)
     )
     row = result.one()
+    avg_result = await db.execute(
+        select(
+            func.avg(
+                func.extract("epoch", Task.completed_at - Task.created_at)
+            ).label("avg_seconds")
+        ).where(
+            Task.project_id == project_id,
+            Task.status == TaskStatus.DONE,
+            Task.completed_at.is_not(None),
+        )
+    )
+    avg_seconds = avg_result.scalar() or 0
     return {
         "project_id": project_id,
         "total": row.total,
@@ -32,4 +44,5 @@ async def project_stats(
         "in_progress": row.in_progress,
         "todo": row.todo,
         "completion_rate": round(row.done / row.total * 100, 1) if row.total else 0,
+        "avg_completion_hours": round(avg_seconds / 3600, 1),
     }
