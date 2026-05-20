@@ -1,8 +1,35 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+@router.get("/project/{project_id}")
+async def project_stats(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(
+            func.count(Task.id).label("total"),
+            func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+            func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
+            func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
+        ).where(Task.project_id == project_id)
+    )
+    row = result.one()
+    return {
+        "project_id": project_id,
+        "total": row.total,
+        "done": row.done,
+        "in_progress": row.in_progress,
+        "todo": row.todo,
+        "completion_rate": round(row.done / row.total * 100, 1) if row.total else 0,
+    }
