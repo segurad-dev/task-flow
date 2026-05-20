@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 
@@ -49,3 +51,11 @@ async def test_cache_invalidated_after_create(auth_client):
     await auth_client.post("/tasks/", json={"title": "Новая", "project_id": 1})
     r = await auth_client.get("/tasks/")
     assert any(t["title"] == "Новая" for t in r.json())
+
+
+@pytest.mark.asyncio
+async def test_notification_sent_on_status_change(auth_client):
+    task_id = (await auth_client.post("/tasks/", json={"title": "T", "project_id": 1})).json()["id"]
+    with patch("app.routers.tasks.send_notification.delay") as mock:
+        await auth_client.patch(f"/tasks/{task_id}", json={"status": "done"})
+        mock.assert_called_once()
