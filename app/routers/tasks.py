@@ -11,6 +11,7 @@ from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from app.workers.celery_app import send_notification
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -66,10 +67,13 @@ async def update_task(
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
+    old_status = task.status
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     if task.status == TaskStatus.DONE and not task.completed_at:
         task.completed_at = datetime.utcnow()
+    if data.status and data.status != old_status:
+        send_notification.delay(task_id=task.id, task_title=task.title, new_status=data.status.value)
     await redis_client.delete(f"tasks:{current_user.id}")
     return task
 
