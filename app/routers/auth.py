@@ -1,3 +1,5 @@
+"""Роутер аутентификации: регистрация, вход и зависимость get_current_user."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -15,6 +17,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserRead, status_code=201)
 async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
+    """Регистрирует нового пользователя.
+
+    Args:
+        data: email, username и открытый пароль.
+        db: сессия базы данных.
+
+    Returns:
+        Данные созданного пользователя (без пароля).
+
+    Raises:
+        HTTPException 400: если email уже зарегистрирован.
+    """
     if await db.scalar(select(User).where(User.email == data.email)):
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
     user = User(
@@ -31,18 +45,48 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
 async def login(
     form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
 ):
+    """Аутентифицирует пользователя и возвращает JWT-токен.
+
+    Принимает форму OAuth2 (application/x-www-form-urlencoded),
+    где username — это email пользователя.
+
+    Args:
+        form: форма с полями username (email) и password.
+        db: сессия базы данных.
+
+    Returns:
+        JWT access_token для использования в заголовке Authorization.
+
+    Raises:
+        HTTPException 401: если email не найден или пароль неверен.
+    """
     user = await db.scalar(select(User).where(User.email == form.username))
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     return Token(access_token=create_access_token(user.id))
 
 
+# Указывает FastAPI, где получать токен для Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
 ) -> User:
+    """Зависимость FastAPI: извлекает текущего пользователя из JWT-токена.
+
+    Используется во всех защищённых эндпоинтах через Depends(get_current_user).
+
+    Args:
+        token: JWT-токен из заголовка Authorization: Bearer <token>.
+        db: сессия базы данных.
+
+    Returns:
+        Объект User для аутентифицированного пользователя.
+
+    Raises:
+        HTTPException 401: если токен невалиден, истёк или пользователь не найден.
+    """
     error = HTTPException(
         status_code=401,
         detail="Невалидный токен",

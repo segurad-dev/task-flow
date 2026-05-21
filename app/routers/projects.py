@@ -1,3 +1,5 @@
+"""Роутер проектов: создание и получение списка проектов текущего пользователя."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +19,16 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Создаёт новый проект от имени текущего пользователя.
+
+    Args:
+        data: название и описание проекта.
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь — становится владельцем.
+
+    Returns:
+        Данные созданного проекта.
+    """
     project = Project(**data.model_dump(), owner_id=current_user.id)
     db.add(project)
     await db.flush()
@@ -28,5 +40,14 @@ async def get_projects(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Возвращает список проектов текущего пользователя.
+
+    Args:
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Список проектов, где пользователь является владельцем.
+    """
     result = await db.execute(select(Project).where(Project.owner_id == current_user.id))
     return result.scalars().all()

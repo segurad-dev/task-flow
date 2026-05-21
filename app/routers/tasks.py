@@ -1,3 +1,5 @@
+"""Роутер задач: CRUD с Redis-кэшированием и Celery-уведомлениями."""
+
 import json
 from datetime import datetime
 
@@ -22,6 +24,16 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Создаёт новую задачу и инвалидирует кэш списка задач пользователя.
+
+    Args:
+        data: данные задачи (заголовок, проект, исполнитель).
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Данные созданной задачи.
+    """
     task = Task(**data.model_dump())
     db.add(task)
     await db.flush()
@@ -37,6 +49,21 @@ async def get_tasks(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Возвращает список задач текущего пользователя с кэшированием.
+
+    Результат кэшируется в Redis на 60 секунд по ключу tasks:{user_id}.
+    Кэш не учитывает фильтры — возвращает кэшированные данные если они есть.
+
+    Args:
+        status: опциональный фильтр по статусу задачи.
+        skip: смещение для пагинации.
+        limit: максимальное количество задач в ответе.
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Список задач, назначенных на текущего пользователя.
+    """
     cache_key = f"tasks:{current_user.id}"
     cached = await redis_client.get(cache_key)
     if cached:
@@ -58,6 +85,19 @@ async def get_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Возвращает задачу по идентификатору.
+
+    Args:
+        task_id: первичный ключ задачи.
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Данные задачи.
+
+    Raises:
+        HTTPException 404: если задача не найдена.
+    """
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
@@ -71,6 +111,24 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Частично обновляет задачу.
+
+    При смене статуса на DONE автоматически проставляет completed_at.
+    При любой смене статуса отправляет асинхронное уведомление через Celery.
+    Инвалидирует кэш списка задач пользователя.
+
+    Args:
+        task_id: первичный ключ задачи.
+        data: поля для обновления (только переданные поля применяются).
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Обновлённые данные задачи.
+
+    Raises:
+        HTTPException 404: если задача не найдена.
+    """
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
@@ -91,6 +149,16 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Удаляет задачу и инвалидирует кэш списка задач пользователя.
+
+    Args:
+        task_id: первичный ключ задачи.
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Raises:
+        HTTPException 404: если задача не найдена.
+    """
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")

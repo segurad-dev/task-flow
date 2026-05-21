@@ -1,3 +1,5 @@
+"""Роутер аналитики: статистика по проектам и личная статистика пользователя."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +18,26 @@ async def project_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Возвращает статистику задач по проекту.
+
+    Выполняет два SQL-запроса:
+    1. Агрегация счётчиков по статусам через func.case (условный COUNT).
+    2. Среднее время выполнения через func.extract("epoch", ...) для перевода
+       интервала PostgreSQL в секунды.
+
+    Args:
+        project_id: идентификатор проекта.
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Словарь с полями: total, done, in_progress, todo,
+        completion_rate (%), avg_completion_hours.
+    """
     result = await db.execute(
         select(
             func.count(Task.id).label("total"),
+            # func.case считает только строки, соответствующие условию
             func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
             func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
             func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
@@ -28,6 +47,7 @@ async def project_stats(
     avg_result = await db.execute(
         select(
             func.avg(
+                # extract("epoch", interval) переводит разность datetime в секунды
                 func.extract("epoch", Task.completed_at - Task.created_at)
             ).label("avg_seconds")
         ).where(
@@ -53,6 +73,15 @@ async def my_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Возвращает личную статистику текущего пользователя.
+
+    Args:
+        db: сессия базы данных.
+        current_user: аутентифицированный пользователь.
+
+    Returns:
+        Словарь с полями: user_id, total_assigned, completed.
+    """
     result = await db.execute(
         select(
             func.count(Task.id).label("total"),
