@@ -12,8 +12,13 @@ from app.database import Base
 class TaskStatus(str, enum.Enum):
     """Допустимые статусы задачи.
 
-    Наследование от str позволяет сериализовать значение как строку
-    без дополнительной конвертации в JSON и Pydantic-схемах.
+    Почему наследуем от str?
+    Enum по умолчанию при сравнении/сериализации возвращает
+    TaskStatus.DONE, а не строку "done".
+    Наследование от str означает что TaskStatus.DONE == "done" → True,
+    и json.dumps(TaskStatus.DONE) → "done" без дополнительной конвертации.
+
+    Это особенно важно для Pydantic-схем и для сравнения со значениями из БД.
     """
 
     TODO = "todo"
@@ -23,20 +28,30 @@ class TaskStatus(str, enum.Enum):
 
 
 class Task(Base):
-    """Задача внутри проекта.
+    """Задача внутри проекта. Таблица tasks.
 
     Атрибуты:
         id: первичный ключ.
         title: заголовок задачи.
         description: необязательное описание.
-        status: текущий статус; по умолчанию TODO.
-        project_id: внешний ключ проекта; задача удаляется вместе с проектом.
-        assignee_id: внешний ключ исполнителя; при удалении пользователя — SET NULL.
-        created_at: дата создания.
-        updated_at: дата последнего изменения, обновляется автоматически.
-        completed_at: момент завершения; используется в аналитике для расчёта avg времени.
-        project: связанный объект проекта.
-        assignee: связанный объект пользователя-исполнителя.
+        status: текущий статус.
+            Enum(TaskStatus) → PostgreSQL ENUM тип, хранит только допустимые значения.
+            default=TaskStatus.TODO → применяется на уровне Python при создании объекта.
+        project_id: обязательный внешний ключ.
+            ondelete="CASCADE": при удалении проекта задача тоже удаляется (на уровне БД).
+        assignee_id: необязательный внешний ключ на исполнителя.
+            ondelete="SET NULL": при удалении пользователя задача остаётся,
+            но assignee_id становится NULL. Задача не теряется.
+        created_at: дата создания, проставляется PostgreSQL.
+        updated_at: дата последнего изменения.
+            onupdate=func.now() → PostgreSQL обновляет это поле автоматически
+            при каждом UPDATE. Python не должен делать это вручную.
+        completed_at: момент завершения задачи.
+            NULL до тех пор, пока статус не станет DONE.
+            Проставляется вручную в роутере, а не автоматически сервером БД.
+            Нужен для аналитики: вычисляем completed_at - created_at.
+        project: объект Project (виртуальное поле, загружается при обращении).
+        assignee: объект User или None (если исполнитель не назначен).
     """
 
     __tablename__ = "tasks"
@@ -53,7 +68,8 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
-    # Проставляется вручную при переходе в статус DONE; не заполняется БД автоматически
+    # Не заполняется БД автоматически — роутер проставляет при переходе в DONE.
+    # Это позволяет аналитике вычислить реальное время выполнения задачи.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="tasks")
