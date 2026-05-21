@@ -1,4 +1,12 @@
-"""Роутер задач: CRUD с Redis-кэшированием и Celery-уведомлениями."""
+"""Роутер задач: CRUD с Redis-кэшированием и Celery-уведомлениями.
+
+Этот файл — самый сложный в проекте, здесь пересекаются:
+- FastAPI (HTTP-слой)
+- SQLAlchemy (работа с БД)
+- Redis (кэширование)
+- Celery (фоновые задачи)
+- Pydantic (сериализация)
+"""
 
 import json
 from datetime import datetime
@@ -26,6 +34,13 @@ async def create_task(
 ):
     """Создаёт новую задачу и инвалидирует кэш списка задач пользователя.
 
+    data.model_dump() конвертирует Pydantic-модель в dict:
+    {"title": "...", "project_id": 1, "description": None, "assignee_id": None}
+    Task(**dict) распаковывает dict в аргументы конструктора.
+
+    После создания кэш списка задач устаревает — удаляем его,
+    чтобы следующий GET /tasks/ загрузил свежие данные из БД.
+
     Args:
         data: данные задачи (заголовок, проект, исполнитель).
         db: сессия базы данных.
@@ -36,7 +51,10 @@ async def create_task(
     """
     task = Task(**data.model_dump())
     db.add(task)
+    # flush(): INSERT выполняется, task.id заполняется, но транзакция не закрыта.
+    # Нужно до redis.delete, чтобы task существовал если что-то пойдёт не так.
     await db.flush()
+    # Инвалидация кэша: ключ tasks:{user_id} устарел после добавления задачи
     await redis_client.delete(f"tasks:{current_user.id}")
     return task
 
@@ -51,13 +69,19 @@ async def get_tasks(
 ):
     """Возвращает список задач текущего пользователя с кэшированием.
 
-    Результат кэшируется в Redis на 60 секунд по ключу tasks:{user_id}.
-    Кэш не учитывает фильтры — возвращает кэшированные данные если они есть.
+    Стратегия кэша (cache-aside):
+    1. Проверяем Redis по ключу tasks:{user_id}
+    2. Cache hit → десериализуем JSON и возвращаем без обращения к БД
+    3. Cache miss → запрос к PostgreSQL, сериализуем в JSON, кладём в Redis на 60с
+
+    ОГРАНИЧЕНИЕ: кэш не учитывает параметры фильтрации и пагинации.
+    Если кэш есть — возвращаем его, игнорируя status/skip/limit.
+    Это упрощение для портфолио; в продакшене ключ должен включать параметры.
 
     Args:
         status: опциональный фильтр по статусу задачи.
-        skip: смещение для пагинации.
-        limit: максимальное количество задач в ответе.
+        skip: смещение для пагинации (OFFSET в SQL).
+        limit: максимальное количество задач (LIMIT в SQL).
         db: сессия базы данных.
         current_user: аутентифицированный пользователь.
 
@@ -67,15 +91,30 @@ async def get_tasks(
     cache_key = f"tasks:{current_user.id}"
     cached = await redis_client.get(cache_key)
     if cached:
+        # json.loads: str → list[dict]. FastAPI применит response_model поверх.
         return json.loads(cached)
+
+    # Строим SQL-запрос через ORM (не raw SQL).
+    # select(Task) → SELECT * FROM tasks
     query = select(Task).where(Task.assignee_id == current_user.id)
     if status:
+        # Добавляем WHERE status = '...' только если передан параметр
         query = query.where(Task.status == status)
+    # OFFSET skip LIMIT limit — стандартная пагинация
     query = query.offset(skip).limit(limit)
+
     result = await db.execute(query)
+    # scalars() извлекает первый столбец (ORM-объекты Task).
+    # all() собирает в список. Без all() — ленивый итератор.
     tasks = result.scalars().all()
+
+    # Сериализуем для Redis: ORM-объекты нельзя хранить напрямую.
+    # model_validate(orm_obj) → Pydantic-объект → model_dump(mode="json") → dict
+    # mode="json" конвертирует datetime в ISO-строки (json.dumps принимает только primitives).
     data = [TaskRead.model_validate(t).model_dump(mode="json") for t in tasks]
+    # setex: SET + EXPIRE. Сохраняем на 60 секунд.
     await redis_client.setex(cache_key, 60, json.dumps(data))
+
     return tasks
 
 
@@ -87,8 +126,12 @@ async def get_task(
 ):
     """Возвращает задачу по идентификатору.
 
+    db.get(Model, pk) — аналог SELECT ... WHERE id = pk.
+    Использует кэш идентичности сессии: если объект уже загружен в этой
+    сессии, повторный db.get() вернёт его без SQL-запроса.
+
     Args:
-        task_id: первичный ключ задачи.
+        task_id: первичный ключ задачи из URL.
         db: сессия базы данных.
         current_user: аутентифицированный пользователь.
 
@@ -111,15 +154,18 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Частично обновляет задачу.
+    """Частично обновляет задачу (PATCH — только переданные поля).
 
-    При смене статуса на DONE автоматически проставляет completed_at.
-    При любой смене статуса отправляет асинхронное уведомление через Celery.
-    Инвалидирует кэш списка задач пользователя.
+    Ключевые моменты:
+    1. model_dump(exclude_unset=True) → только поля из запроса, не все Optional=None
+    2. setattr(task, field, value) → ORM замечает изменение, генерирует UPDATE
+    3. completed_at проставляется один раз при первом переходе в DONE
+    4. Уведомление через Celery — только при смене статуса, не при каждом PATCH
+    5. Инвалидация кэша — при любом изменении задачи
 
     Args:
-        task_id: первичный ключ задачи.
-        data: поля для обновления (только переданные поля применяются).
+        task_id: первичный ключ задачи из URL.
+        data: поля для обновления (только переданные в запросе).
         db: сессия базы данных.
         current_user: аутентифицированный пользователь.
 
@@ -132,13 +178,29 @@ async def update_task(
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
+
+    # Сохраняем старый статус до применения изменений — нужен для сравнения ниже
     old_status = task.status
+
+    # exclude_unset=True — ключевой момент PATCH-семантики.
+    # PATCH {"status": "done"} → {"status": "done"} (не {"title": None, ...})
     for field, value in data.model_dump(exclude_unset=True).items():
+        # setattr применяет изменение к ORM-объекту.
+        # SQLAlchemy отслеживает измененные поля через __set_name__ дескрипторы.
         setattr(task, field, value)
+
+    # Автоматически проставляем время завершения при первом переходе в DONE.
+    # Проверяем completed_at чтобы не перезатереть при повторном PATCH status=done.
     if task.status == TaskStatus.DONE and not task.completed_at:
         task.completed_at = datetime.utcnow()
+
+    # Отправляем уведомление только при реальной смене статуса.
+    # .delay() — асинхронный вызов Celery: задача уходит в RabbitMQ мгновенно,
+    # HTTP-запрос не ждёт отправки уведомления.
     if data.status and data.status != old_status:
         send_notification.delay(task_id=task.id, task_title=task.title, new_status=data.status.value)
+
+    # Инвалидируем кэш: данные задачи изменились, кэш списка устарел
     await redis_client.delete(f"tasks:{current_user.id}")
     return task
 
@@ -151,8 +213,11 @@ async def delete_task(
 ):
     """Удаляет задачу и инвалидирует кэш списка задач пользователя.
 
+    status_code=204: No Content — стандартный код для успешного удаления.
+    FastAPI при 204 не включает тело в ответ (даже если return что-то вернуть).
+
     Args:
-        task_id: первичный ключ задачи.
+        task_id: первичный ключ задачи из URL.
         db: сессия базы данных.
         current_user: аутентифицированный пользователь.
 
@@ -162,5 +227,7 @@ async def delete_task(
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
+    # db.delete() помечает объект для удаления.
+    # Реальный DELETE выполнится при commit() в get_db().
     await db.delete(task)
     await redis_client.delete(f"tasks:{current_user.id}")
