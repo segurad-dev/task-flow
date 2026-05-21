@@ -1,10 +1,26 @@
+"""ORM-модель пользователя."""
+
 from datetime import datetime
-from sqlalchemy import String, DateTime, func
+
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.database import Base
 
 
 class User(Base):
+    """Пользователь системы.
+
+    Атрибуты:
+        id: первичный ключ.
+        email: уникальный адрес электронной почты, используется для входа.
+        username: уникальное отображаемое имя.
+        hashed_password: bcrypt-хэш пароля, исходный пароль не хранится.
+        created_at: дата и время регистрации, проставляется сервером БД.
+        projects: проекты, которыми владеет пользователь.
+        tasks: задачи, назначенные на пользователя.
+    """
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
