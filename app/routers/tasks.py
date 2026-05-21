@@ -31,6 +31,8 @@ async def create_task(
 
 @router.get("/", response_model=list[TaskRead])
 async def get_tasks(
+    skip: int = 0,
+    limit: int = 20,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -38,7 +40,9 @@ async def get_tasks(
     cached = await redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
-    result = await db.execute(select(Task).where(Task.assignee_id == current_user.id))
+    result = await db.execute(
+        select(Task).where(Task.assignee_id == current_user.id).offset(skip).limit(limit)
+    )
     tasks = result.scalars().all()
     data = [TaskRead.model_validate(t).model_dump(mode="json") for t in tasks]
     await redis_client.setex(cache_key, 60, json.dumps(data))
