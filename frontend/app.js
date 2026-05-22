@@ -141,6 +141,27 @@ function dashboardApp() {
       return { todo: "Ожидает", in_progress: "В работе", done: "Готово", cancelled: "Отменено" }[status] ?? status;
     },
 
+    async changeStatus(taskId, newStatus) {
+      try {
+        const updated = await updateTask(taskId, { status: newStatus });
+        // Update in-place so the list doesn't flicker with a full reload
+        const idx = this.tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) this.tasks[idx] = updated;
+      } catch (e) {
+        console.error("changeStatus:", e.message);
+      }
+    },
+
+    async removeTask(taskId) {
+      if (!confirm("Удалить задачу?")) return;
+      try {
+        await deleteTask(taskId);
+        this.tasks = this.tasks.filter(t => t.id !== taskId);
+      } catch (e) {
+        console.error("deleteTask:", e.message);
+      }
+    },
+
     async submitNewTask() {
       const title = this.newTask.title.trim();
       if (!title || !this.currentProject) return;

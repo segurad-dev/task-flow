@@ -309,7 +309,24 @@
                        x-text="new Date(task.created_at).toLocaleDateString('ru-RU')"></p>
                   </div>
 
-                  <!-- Status dropdown + delete appear in commit 9 -->
+                  <!-- Inline status dropdown -->
+                  <select
+                    :value="task.status"
+                    @change="changeStatus(task.id, $event.target.value)"
+                    class="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  >
+                    <option value="todo">Ожидает</option>
+                    <option value="in_progress">В работе</option>
+                    <option value="done">Готово</option>
+                    <option value="cancelled">Отменено</option>
+                  </select>
+
+                  <!-- Delete button -->
+                  <button
+                    @click="removeTask(task.id)"
+                    class="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
+                    title="Удалить задачу"
+                  >✕</button>
 
                 </div>
               </template>
