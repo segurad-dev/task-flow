@@ -1,3 +1,5 @@
+// ── Auth component ────────────────────────────────────────────────────────────
+
 function authApp() {
   return {
     mode: "login",      // 'login' | 'register'
@@ -7,8 +9,6 @@ function authApp() {
     loading: false,
     error: "",
 
-    // Called once by Alpine when the component is initialised.
-    // If a token already exists we skip the auth form entirely.
     init() {
       if (localStorage.getItem("token")) {
         this.$dispatch("authenticated");
@@ -27,21 +27,56 @@ function authApp() {
         if (this.mode === "login") {
           const data = await login(this.email, this.password);
           localStorage.setItem("token", data.access_token);
-          // Store username for display; the real user object comes in commit 5
           localStorage.setItem("username", this.email.split("@")[0]);
           this.$dispatch("authenticated");
         } else {
           await register(this.email, this.username, this.password);
-          // After registration switch to login and prefill email
+          // After registration switch to login with email prefilled
           this.mode = "login";
           this.password = "";
-          this.error = "";
         }
       } catch (e) {
         this.error = e.message;
       } finally {
         this.loading = false;
       }
+    },
+  };
+}
+
+// ── Dashboard component ───────────────────────────────────────────────────────
+
+function dashboardApp() {
+  return {
+    username: "",
+
+    // Projects state (populated in commit 6)
+    projects: [],
+    currentProject: null,
+    showNewProjectForm: false,
+    newProjectTitle: "",
+    projectsLoading: false,
+
+    // Tasks state (populated in commit 7)
+    tasks: [],
+    statusFilter: "all",
+    tasksLoading: false,
+
+    // Create task form state (populated in commit 8)
+    showNewTaskForm: false,
+    newTask: { title: "", description: "" },
+    taskSaving: false,
+
+    // Analytics state (populated in commit 10)
+    analytics: null,
+
+    init() {
+      this.username = localStorage.getItem("username") || "Пользователь";
+    },
+
+    logout() {
+      localStorage.clear();
+      this.$dispatch("logout");
     },
   };
 }
