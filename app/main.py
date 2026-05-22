@@ -13,11 +13,22 @@ uvicorn (app.main:app). Роутеры разбиты по файлам для �
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import analytics, auth, projects, tasks
 
 # title и version отображаются в Swagger UI (http://localhost:8000/docs)
 app = FastAPI(title="Task Flow", version="1.0.0")
+
+# Разрешаем запросы от фронтенда (localhost:3000).
+# Без этого браузер блокирует cross-origin запросы к localhost:8000.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # include_router добавляет все эндпоинты роутера в приложение.
 # prefix из роутера (/auth, /tasks и т.д.) автоматически применяется.
