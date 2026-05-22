@@ -113,7 +113,18 @@ function dashboardApp() {
       this.analytics = null;
       this.showNewTaskForm = false;
       this.statusFilter = "all";
-      await this.loadTasks();
+      await Promise.all([this.loadTasks(), this.loadAnalytics()]);
+    },
+
+    // ── Analytics ─────────────────────────────────────────────────────────
+
+    async loadAnalytics() {
+      if (!this.currentProject) return;
+      try {
+        this.analytics = await getProjectAnalytics(this.currentProject.id);
+      } catch (e) {
+        console.error("loadAnalytics:", e.message);
+      }
     },
 
     // ── Tasks ─────────────────────────────────────────────────────────────
