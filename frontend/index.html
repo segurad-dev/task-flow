@@ -100,6 +100,12 @@
     </div>
 
     <!-- ── Dashboard ──────────────────────────────────────────────────────── -->
+    <!--
+      @authenticated.window="init()" is critical: dashboardApp() is mounted once
+      on page load (before any login), so x-data runs without a token. We need
+      init() to run again *after* the user logs in and the token is saved.
+      The authApp dispatches "authenticated" on success — this listener catches it.
+    -->
     <div
       x-show="authed"
       x-data="dashboardApp()"

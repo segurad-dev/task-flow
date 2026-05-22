@@ -1,4 +1,6 @@
 // ── Auth component ────────────────────────────────────────────────────────────
+// Handles login/register forms. On success dispatches "authenticated" event
+// which the root div listens to in order to switch to the dashboard.
 
 function authApp() {
   return {
@@ -10,6 +12,8 @@ function authApp() {
     error: "",
 
     init() {
+      // If a token is already in localStorage (e.g. page reload), go straight
+      // to dashboard without showing the login form again.
       if (localStorage.getItem("token")) {
         this.$dispatch("authenticated");
       }
@@ -45,6 +49,9 @@ function authApp() {
 }
 
 // ── Dashboard component ───────────────────────────────────────────────────────
+// Main application state after login. Mounted once in index.html and kept alive
+// for the session. Re-initialised on every "authenticated" event (see index.html)
+// so that init() runs with a valid token even after a fresh login on the same page.
 
 function dashboardApp() {
   return {
@@ -79,7 +86,12 @@ function dashboardApp() {
 
     async init() {
       this.username = localStorage.getItem("username") || "Пользователь";
-      // Decode user_id from the JWT payload (field "sub") — no extra API call needed
+
+      // Extract user_id from the JWT payload without an extra API round-trip.
+      // JWT structure: base64(header).base64(payload).signature
+      // The backend stores the numeric user id in the "sub" claim.
+      // replace(/-/g, "+") and replace(/_/g, "/") convert URL-safe base64 → standard base64
+      // so that atob() can decode it correctly.
       try {
         const token = localStorage.getItem("token");
         const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));

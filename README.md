@@ -102,8 +102,22 @@ curl "http://localhost:8000/tasks/?status=in_progress" \
 
 **Стек**: HTML + Alpine.js + Tailwind CSS
 
+### Полный запуск проекта (бэкенд + фронтенд)
+
+Нужно **два открытых терминала** одновременно.
+
+**Терминал 1 — бэкенд:**
+
 ```bash
-# Бэкенд уже запущен (docker-compose up)
+# В корне проекта
+docker-compose up --build
+# Дождаться: "Application startup complete."
+# API: http://localhost:8000/docs
+```
+
+**Терминал 2 — фронтенд (открыть новое окно терминала):**
+
+```bash
 cd frontend
 python -m http.server 3000
 # Открыть http://localhost:3000
