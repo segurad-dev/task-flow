@@ -96,6 +96,21 @@ curl "http://localhost:8000/tasks/?status=in_progress" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## Frontend Demo
+
+Простой SPA-интерфейс для наглядной демонстрации API — без сборки, только CDN.
+
+**Стек**: HTML + Alpine.js + Tailwind CSS
+
+```bash
+# Бэкенд уже запущен (docker-compose up)
+cd frontend
+python -m http.server 3000
+# Открыть http://localhost:3000
+```
+
+Подробнее: [frontend/README.md](frontend/README.md)
+
 ## Как это работает
 
 ```
