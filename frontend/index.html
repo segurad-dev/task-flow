@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Flow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+  <div id="app" class="w-full max-w-md">
+
+    <!-- Auth card -->
+    <div class="bg-white rounded-2xl shadow-md p-8">
+
+      <!-- Logo / title -->
+      <div class="text-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Task Flow</h1>
+        <p class="text-sm text-gray-500 mt-1">Система управления задачами</p>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="flex border-b border-gray-200 mb-6">
+        <button
+          id="tab-login"
+          class="flex-1 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-600 focus:outline-none"
+          onclick="switchTab('login')"
+        >
+          Войти
+        </button>
+        <button
+          id="tab-register"
+          class="flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent hover:text-gray-600 focus:outline-none"
+          onclick="switchTab('register')"
+        >
+          Регистрация
+        </button>
+      </div>
+
+      <!-- Login form -->
+      <form id="form-login">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+          <input
+            type="password"
+            name="password"
+            required
+            placeholder="••••••••"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors"
+        >
+          Войти
+        </button>
+      </form>
+
+      <!-- Register form (hidden by default) -->
+      <form id="form-register" class="hidden">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Имя пользователя</label>
+          <input
+            type="text"
+            name="username"
+            required
+            placeholder="johndoe"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+          <input
+            type="password"
+            name="password"
+            required
+            placeholder="••••••••"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors"
+        >
+          Создать аккаунт
+        </button>
+      </form>
+
+    </div>
+
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('form-login').classList.toggle('hidden', !isLogin);
+      document.getElementById('form-register').classList.toggle('hidden', isLogin);
+
+      document.getElementById('tab-login').className = isLogin
+        ? 'flex-1 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-600 focus:outline-none'
+        : 'flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent hover:text-gray-600 focus:outline-none';
+      document.getElementById('tab-register').className = isLogin
+        ? 'flex-1 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent hover:text-gray-600 focus:outline-none'
+        : 'flex-1 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-600 focus:outline-none';
+    }
+  </script>
+
+</body>
+</html>
