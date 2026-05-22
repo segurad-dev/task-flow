@@ -62,6 +62,7 @@ async def create_task(
 @router.get("/", response_model=list[TaskRead])
 async def get_tasks(
     status: TaskStatus | None = None,
+    project_id: int | None = None,
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
@@ -88,7 +89,8 @@ async def get_tasks(
     Returns:
         Список задач, назначенных на текущего пользователя.
     """
-    cache_key = f"tasks:{current_user.id}"
+    # Ключ кэша включает project_id, чтобы не смешивать разные выборки
+    cache_key = f"tasks:{current_user.id}:{project_id or 'all'}"
     cached = await redis_client.get(cache_key)
     if cached:
         # json.loads: str → list[dict]. FastAPI применит response_model поверх.
@@ -96,7 +98,11 @@ async def get_tasks(
 
     # Строим SQL-запрос через ORM (не raw SQL).
     # select(Task) → SELECT * FROM tasks
-    query = select(Task).where(Task.assignee_id == current_user.id)
+    if project_id:
+        # Когда передан project_id — возвращаем все задачи проекта
+        query = select(Task).where(Task.project_id == project_id)
+    else:
+        query = select(Task).where(Task.assignee_id == current_user.id)
     if status:
         # Добавляем WHERE status = '...' только если передан параметр
         query = query.where(Task.status == status)

@@ -69,8 +69,9 @@ async function createProject(title, description = "") {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-async function getTasks(status = null) {
+async function getTasks(projectId = null, status = null) {
   const params = new URLSearchParams({ limit: "100" });
+  if (projectId) params.set("project_id", projectId);
   if (status) params.set("status", status);
   return apiFetch(`/tasks/?${params}`);
 }

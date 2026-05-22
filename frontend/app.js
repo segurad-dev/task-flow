@@ -145,9 +145,8 @@ function dashboardApp() {
       if (!this.currentProject) return;
       this.tasksLoading = true;
       try {
-        // API returns tasks assigned to current user; filter by project client-side
-        const all = await getTasks();
-        this.tasks = all.filter(t => t.project_id === this.currentProject.id);
+        // Pass project_id so the API returns all tasks in the project
+        this.tasks = await getTasks(this.currentProject.id);
       } catch (e) {
         this.showToast(e.message);
       } finally {
