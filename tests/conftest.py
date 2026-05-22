@@ -18,19 +18,50 @@
 import os
 
 import pytest_asyncio
+import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import app.routers.tasks as tasks_router
+from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 
-# Берём URL из переменной среды (для CI) или используем дефолтную (для локальной разработки).
-# CI устанавливает DATABASE_URL в .github/workflows/ci.yml
+_original_redis = tasks_router.redis_client
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def fresh_redis():
+    """Создаёт свежий Redis-клиент для каждого теста.
+
+    redis_client создаётся на уровне модуля и привязывается к event loop
+    при первом использовании. pytest-asyncio 0.23 создаёт отдельный loop
+    для каждого теста — при попытке использовать старый клиент из другого
+    loop Redis бросает RuntimeError: Future attached to a different loop.
+
+    Решение: создаём свежий клиент (lazy, без соединений) в начале каждого
+    теста — его соединения откроются уже в правильном loop.
+    """
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    tasks_router.redis_client = client
+    yield client
+    await client.aclose()
+    tasks_router.redis_client = _original_redis
+
+# TEST_DATABASE_URL — отдельная БД чтобы не трогать данные dev-окружения.
+# В CI задаётся через env var. Локально в Docker — через .env.
+# Не используем DATABASE_URL чтобы случайно не запустить тесты против prod БД.
 TEST_DB_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/taskflow_test"
+    "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/taskflow_test"
 )
-# Создаём отдельный движок для тестов — не используем движок из app/database.py
-test_engine = create_async_engine(TEST_DB_URL)
+
+# NullPool — соединения не кешируются между запросами.
+# Без NullPool asyncpg привязывает соединения к event loop в котором они созданы.
+# В pytest-asyncio 0.23 session-scoped фикстуры и function-scoped тесты
+# могут работать в разных event loop → InterfaceError: another operation is in progress.
+# NullPool создаёт свежее соединение для каждой сессии → нет конфликта loop-ов.
+test_engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
 TestSession = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -109,14 +140,19 @@ async def auth_client(client):
     Это имитирует поведение реального клиента с сохранённым токеном.
     """
     # Регистрируем тестового пользователя
-    await client.post(
+    reg = await client.post(
         "/auth/register",
         json={"email": "auto@test.com", "username": "auto", "password": "autopass"},
     )
+    client.user_id = reg.json()["id"]
     # Входим и получаем токен
     r = await client.post(
         "/auth/login", data={"username": "auto@test.com", "password": "autopass"}
     )
     # Добавляем токен в заголовки — все последующие запросы будут авторизованы
     client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+    # Создаём тестовый проект и сохраняем его id для использования в тестах задач.
+    # Тесты обращаются к client.project_id вместо хардкода "1".
+    project = await client.post("/projects/", json={"title": "Test Project"})
+    client.project_id = project.json()["id"]
     return client

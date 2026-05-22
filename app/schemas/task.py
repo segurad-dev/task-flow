@@ -87,5 +87,6 @@ class TaskRead(BaseModel):
     assignee_id: int | None
     created_at: datetime
     updated_at: datetime
+    completed_at: datetime | None
 
     model_config = {"from_attributes": True}

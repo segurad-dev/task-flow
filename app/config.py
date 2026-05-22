@@ -50,6 +50,8 @@ class Settings(BaseSettings):
         # Указываем pydantic-settings где искать .env файл
         # Если файла нет — используются переменные среды (для Docker/CI)
         env_file = ".env"
+        # Игнорируем неизвестные переменные (например TEST_DATABASE_URL)
+        extra = "ignore"
 
 
 # Единственный экземпляр настроек для всего приложения.

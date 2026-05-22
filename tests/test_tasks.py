@@ -19,7 +19,7 @@ async def test_create_task(auth_client):
     1. HTTP-код 201 Created (не 200, не 400)
     2. Начальный статус всегда "todo" (не зависит от переданных данных)
     """
-    r = await auth_client.post("/tasks/", json={"title": "Задача", "project_id": 1})
+    r = await auth_client.post("/tasks/", json={"title": "Задача", "project_id": auth_client.project_id})
     assert r.status_code == 201
     assert r.json()["status"] == "todo"
 
@@ -43,7 +43,7 @@ async def test_update_task_status(auth_client):
     Assert: ответ содержит обновлённый статус
     """
     task_id = (
-        await auth_client.post("/tasks/", json={"title": "T", "project_id": 1})
+        await auth_client.post("/tasks/", json={"title": "T", "project_id": auth_client.project_id})
     ).json()["id"]
     r = await auth_client.patch(f"/tasks/{task_id}", json={"status": "in_progress"})
     assert r.json()["status"] == "in_progress"
@@ -57,7 +57,7 @@ async def test_delete_task(auth_client):
     но и реальное удаление через GET: задача должна исчезнуть из БД.
     """
     task_id = (
-        await auth_client.post("/tasks/", json={"title": "Del", "project_id": 1})
+        await auth_client.post("/tasks/", json={"title": "Del", "project_id": auth_client.project_id})
     ).json()["id"]
     assert (await auth_client.delete(f"/tasks/{task_id}")).status_code == 204
     assert (await auth_client.get(f"/tasks/{task_id}")).status_code == 404
@@ -93,7 +93,11 @@ async def test_cache_invalidated_after_create(auth_client):
     Без инвалидации шаг 3 вернул бы устаревший кэш без "Новой".
     """
     await auth_client.get("/tasks/")  # заполняем кэш
-    await auth_client.post("/tasks/", json={"title": "Новая", "project_id": 1})
+    await auth_client.post("/tasks/", json={
+        "title": "Новая",
+        "project_id": auth_client.project_id,
+        "assignee_id": auth_client.user_id,
+    })
     r = await auth_client.get("/tasks/")
     assert any(t["title"] == "Новая" for t in r.json())
 
@@ -112,7 +116,7 @@ async def test_notification_sent_on_status_change(auth_client):
     mock.assert_called_once() проверяет что .delay() вызвали ровно 1 раз.
     Если бы роутер вызвал дважды или ни разу — тест упал бы.
     """
-    task_id = (await auth_client.post("/tasks/", json={"title": "T", "project_id": 1})).json()["id"]
+    task_id = (await auth_client.post("/tasks/", json={"title": "T", "project_id": auth_client.project_id})).json()["id"]
     with patch("app.routers.tasks.send_notification.delay") as mock:
         await auth_client.patch(f"/tasks/{task_id}", json={"status": "done"})
         mock.assert_called_once()
