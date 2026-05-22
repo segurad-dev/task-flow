@@ -57,12 +57,14 @@ function dashboardApp() {
     newProjectTitle: "",
     projectsLoading: false,
 
-    // Tasks state (populated in commit 7)
+    currentUserId: null,
+
+    // Tasks state
     tasks: [],
     statusFilter: "all",
     tasksLoading: false,
 
-    // Create task form state (populated in commit 8)
+    // Create task form
     showNewTaskForm: false,
     newTask: { title: "", description: "" },
     taskSaving: false,
@@ -72,6 +74,14 @@ function dashboardApp() {
 
     async init() {
       this.username = localStorage.getItem("username") || "Пользователь";
+      // Decode user_id from the JWT payload (field "sub") — no extra API call needed
+      try {
+        const token = localStorage.getItem("token");
+        const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        this.currentUserId = parseInt(payload.sub);
+      } catch {
+        this.currentUserId = null;
+      }
       await this.loadProjects();
     },
 
@@ -129,6 +139,22 @@ function dashboardApp() {
 
     statusLabel(status) {
       return { todo: "Ожидает", in_progress: "В работе", done: "Готово", cancelled: "Отменено" }[status] ?? status;
+    },
+
+    async submitNewTask() {
+      const title = this.newTask.title.trim();
+      if (!title || !this.currentProject) return;
+      this.taskSaving = true;
+      try {
+        await createTask(title, this.newTask.description, this.currentProject.id, this.currentUserId);
+        this.newTask = { title: "", description: "" };
+        this.showNewTaskForm = false;
+        await this.loadTasks();
+      } catch (e) {
+        console.error("createTask:", e.message);
+      } finally {
+        this.taskSaving = false;
+      }
     },
 
     statusBadgeClass(status) {

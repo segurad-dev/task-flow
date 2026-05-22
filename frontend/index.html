@@ -228,7 +228,49 @@
                 <option value="done">Готово</option>
                 <option value="cancelled">Отменено</option>
               </select>
-              <!-- "+ Задача" button appears in commit 8 -->
+              <button
+                @click="showNewTaskForm = !showNewTaskForm; newTask = { title: '', description: '' }"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >+ Задача</button>
+            </div>
+
+            <!-- New task form -->
+            <div x-show="showNewTaskForm" x-transition class="bg-white rounded-xl border border-indigo-200 p-4 mb-4">
+              <form @submit.prevent="submitNewTask()">
+                <div class="mb-3">
+                  <input
+                    x-model="newTask.title"
+                    x-ref="taskTitleInput"
+                    x-init="$watch('showNewTaskForm', v => v && $nextTick(() => $refs.taskTitleInput.focus()))"
+                    type="text"
+                    placeholder="Название задачи"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div class="mb-3">
+                  <textarea
+                    x-model="newTask.description"
+                    placeholder="Описание (необязательно)"
+                    rows="2"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                  ></textarea>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="submit"
+                    :disabled="taskSaving"
+                    class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                  >
+                    <span x-text="taskSaving ? 'Создаём…' : 'Создать'"></span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="showNewTaskForm = false"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                  >Отмена</button>
+                </div>
+              </form>
             </div>
 
             <!-- Loading spinner -->
