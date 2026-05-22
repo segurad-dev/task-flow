@@ -11,6 +11,12 @@ async function apiFetch(path, options = {}) {
 
   if (res.status === 204) return null;
 
+  // Auto-logout on expired/invalid token — dashboard listens for this event
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent("unauthorized"));
+    throw new Error("Сессия истекла. Войдите снова.");
+  }
+
   const data = await res.json();
 
   if (!res.ok) {

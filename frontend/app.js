@@ -69,8 +69,13 @@ function dashboardApp() {
     newTask: { title: "", description: "" },
     taskSaving: false,
 
-    // Analytics state (populated in commit 10)
+    // Analytics state
     analytics: null,
+
+    // Toast notification
+    toastMessage: "",
+    toastVisible: false,
+    _toastTimer: null,
 
     async init() {
       this.username = localStorage.getItem("username") || "Пользователь";
@@ -90,6 +95,13 @@ function dashboardApp() {
       this.$dispatch("logout");
     },
 
+    showToast(message) {
+      clearTimeout(this._toastTimer);
+      this.toastMessage = message;
+      this.toastVisible = true;
+      this._toastTimer = setTimeout(() => { this.toastVisible = false; }, 3000);
+    },
+
     // ── Projects ──────────────────────────────────────────────────────────
 
     async loadProjects() {
@@ -101,7 +113,7 @@ function dashboardApp() {
           await this.selectProject(this.projects[0]);
         }
       } catch (e) {
-        console.error("loadProjects:", e.message);
+        this.showToast(e.message);
       } finally {
         this.projectsLoading = false;
       }
@@ -123,7 +135,7 @@ function dashboardApp() {
       try {
         this.analytics = await getProjectAnalytics(this.currentProject.id);
       } catch (e) {
-        console.error("loadAnalytics:", e.message);
+        this.showToast(e.message);
       }
     },
 
@@ -137,7 +149,7 @@ function dashboardApp() {
         const all = await getTasks();
         this.tasks = all.filter(t => t.project_id === this.currentProject.id);
       } catch (e) {
-        console.error("loadTasks:", e.message);
+        this.showToast(e.message);
       } finally {
         this.tasksLoading = false;
       }
@@ -159,7 +171,7 @@ function dashboardApp() {
         const idx = this.tasks.findIndex(t => t.id === taskId);
         if (idx !== -1) this.tasks[idx] = updated;
       } catch (e) {
-        console.error("changeStatus:", e.message);
+        this.showToast(e.message);
       }
     },
 
@@ -169,7 +181,7 @@ function dashboardApp() {
         await deleteTask(taskId);
         this.tasks = this.tasks.filter(t => t.id !== taskId);
       } catch (e) {
-        console.error("deleteTask:", e.message);
+        this.showToast(e.message);
       }
     },
 
@@ -183,7 +195,7 @@ function dashboardApp() {
         this.showNewTaskForm = false;
         await this.loadTasks();
       } catch (e) {
-        console.error("createTask:", e.message);
+        this.showToast(e.message);
       } finally {
         this.taskSaving = false;
       }
@@ -208,7 +220,7 @@ function dashboardApp() {
         this.newProjectTitle = "";
         this.showNewProjectForm = false;
       } catch (e) {
-        console.error("createProject:", e.message);
+        this.showToast(e.message);
       }
     },
   };
