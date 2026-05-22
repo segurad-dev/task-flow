@@ -54,8 +54,9 @@ async def create_task(
     # flush(): INSERT выполняется, task.id заполняется, но транзакция не закрыта.
     # Нужно до redis.delete, чтобы task существовал если что-то пойдёт не так.
     await db.flush()
-    # Инвалидация кэша: ключ tasks:{user_id} устарел после добавления задачи
-    await redis_client.delete(f"tasks:{current_user.id}")
+    # Инвалидируем оба варианта ключа: по проекту и общий список
+    await redis_client.delete(f"tasks:{current_user.id}:{task.project_id}")
+    await redis_client.delete(f"tasks:{current_user.id}:all")
     return task
 
 
@@ -206,8 +207,9 @@ async def update_task(
     if data.status and data.status != old_status:
         send_notification.delay(task_id=task.id, task_title=task.title, new_status=data.status.value)
 
-    # Инвалидируем кэш: данные задачи изменились, кэш списка устарел
-    await redis_client.delete(f"tasks:{current_user.id}")
+    # Инвалидируем оба варианта ключа: по проекту и общий список
+    await redis_client.delete(f"tasks:{current_user.id}:{task.project_id}")
+    await redis_client.delete(f"tasks:{current_user.id}:all")
     return task
 
 
@@ -236,4 +238,5 @@ async def delete_task(
     # db.delete() помечает объект для удаления.
     # Реальный DELETE выполнится при commit() в get_db().
     await db.delete(task)
-    await redis_client.delete(f"tasks:{current_user.id}")
+    await redis_client.delete(f"tasks:{current_user.id}:{task.project_id}")
+    await redis_client.delete(f"tasks:{current_user.id}:all")

@@ -105,6 +105,7 @@
       x-data="dashboardApp()"
       x-transition
       @unauthorized.window="logout()"
+      @authenticated.window="init()"
       class="flex flex-col min-h-screen"
     >
 
