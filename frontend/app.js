@@ -70,13 +70,52 @@ function dashboardApp() {
     // Analytics state (populated in commit 10)
     analytics: null,
 
-    init() {
+    async init() {
       this.username = localStorage.getItem("username") || "Пользователь";
+      await this.loadProjects();
     },
 
     logout() {
       localStorage.clear();
       this.$dispatch("logout");
+    },
+
+    // ── Projects ──────────────────────────────────────────────────────────
+
+    async loadProjects() {
+      this.projectsLoading = true;
+      try {
+        this.projects = await getProjects();
+        // Auto-select first project if none selected
+        if (!this.currentProject && this.projects.length > 0) {
+          await this.selectProject(this.projects[0]);
+        }
+      } catch (e) {
+        console.error("loadProjects:", e.message);
+      } finally {
+        this.projectsLoading = false;
+      }
+    },
+
+    async selectProject(project) {
+      this.currentProject = project;
+      this.tasks = [];
+      this.analytics = null;
+      this.showNewTaskForm = false;
+    },
+
+    async submitNewProject() {
+      const title = this.newProjectTitle.trim();
+      if (!title) return;
+      try {
+        const project = await createProject(title);
+        this.projects.push(project);
+        await this.selectProject(project);
+        this.newProjectTitle = "";
+        this.showNewProjectForm = false;
+      } catch (e) {
+        console.error("createProject:", e.message);
+      }
     },
   };
 }

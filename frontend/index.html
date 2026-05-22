@@ -124,30 +124,104 @@
 
         <!-- Sidebar -->
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+
+          <!-- Sidebar header -->
           <div class="p-4 border-b border-gray-100 flex items-center justify-between">
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Проекты</span>
-            <!-- "+ Новый проект" button appears in commit 6 -->
+            <button
+              @click="showNewProjectForm = !showNewProjectForm; newProjectTitle = ''"
+              class="text-indigo-500 hover:text-indigo-700 text-lg leading-none font-bold"
+              title="Новый проект"
+            >+</button>
           </div>
 
-          <!-- Project list (populated in commit 6) -->
+          <!-- Inline new project form -->
+          <div x-show="showNewProjectForm" x-transition class="px-3 py-2 border-b border-gray-100">
+            <form @submit.prevent="submitNewProject()">
+              <input
+                x-model="newProjectTitle"
+                x-ref="projectInput"
+                x-init="$watch('showNewProjectForm', v => v && $nextTick(() => $refs.projectInput.focus()))"
+                type="text"
+                placeholder="Название проекта"
+                required
+                class="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <div class="flex gap-2 mt-2">
+                <button type="submit"
+                  class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-1 rounded transition-colors">
+                  Создать
+                </button>
+                <button type="button" @click="showNewProjectForm = false"
+                  class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium py-1 rounded transition-colors">
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Project list -->
           <nav class="flex-1 overflow-y-auto p-2">
-            <p class="text-xs text-gray-400 px-2 py-4 text-center">Загрузка проектов…</p>
+
+            <!-- Loading state -->
+            <div x-show="projectsLoading" class="flex justify-center py-6">
+              <svg class="animate-spin h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+              </svg>
+            </div>
+
+            <!-- Empty state -->
+            <p
+              x-show="!projectsLoading && projects.length === 0"
+              class="text-xs text-gray-400 px-2 py-4 text-center"
+            >Нет проектов. Создайте первый!</p>
+
+            <!-- Project items -->
+            <template x-for="project in projects" :key="project.id">
+              <button
+                @click="selectProject(project)"
+                :class="currentProject && currentProject.id === project.id
+                  ? 'w-full text-left px-3 py-2 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700'
+                  : 'w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100'"
+              >
+                <span class="truncate block" x-text="project.title"></span>
+              </button>
+            </template>
+
           </nav>
 
           <!-- Analytics card placeholder (commit 10) -->
           <div class="p-4 border-t border-gray-100">
             <p class="text-xs text-gray-400 text-center">Аналитика появится здесь</p>
           </div>
+
         </aside>
 
         <!-- Main content -->
         <main class="flex-1 overflow-y-auto p-6">
-          <div class="flex items-center justify-center h-full text-gray-400">
+
+          <!-- No project selected -->
+          <div x-show="!currentProject" class="flex items-center justify-center h-full text-gray-400">
             <div class="text-center">
               <p class="text-4xl mb-3">📋</p>
               <p class="text-sm">Выберите проект в боковой панели</p>
             </div>
           </div>
+
+          <!-- Project selected -->
+          <div x-show="currentProject">
+            <!-- Project title -->
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-xl font-bold text-gray-800" x-text="currentProject && currentProject.title"></h2>
+            </div>
+
+            <!-- Tasks section (populated in commit 7) -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">
+              Список задач появится в следующем коммите
+            </div>
+          </div>
+
         </main>
 
       </div>
