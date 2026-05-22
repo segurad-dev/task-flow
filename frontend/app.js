@@ -102,6 +102,42 @@ function dashboardApp() {
       this.tasks = [];
       this.analytics = null;
       this.showNewTaskForm = false;
+      this.statusFilter = "all";
+      await this.loadTasks();
+    },
+
+    // ── Tasks ─────────────────────────────────────────────────────────────
+
+    async loadTasks() {
+      if (!this.currentProject) return;
+      this.tasksLoading = true;
+      try {
+        // API returns tasks assigned to current user; filter by project client-side
+        const all = await getTasks();
+        this.tasks = all.filter(t => t.project_id === this.currentProject.id);
+      } catch (e) {
+        console.error("loadTasks:", e.message);
+      } finally {
+        this.tasksLoading = false;
+      }
+    },
+
+    get filteredTasks() {
+      if (this.statusFilter === "all") return this.tasks;
+      return this.tasks.filter(t => t.status === this.statusFilter);
+    },
+
+    statusLabel(status) {
+      return { todo: "Ожидает", in_progress: "В работе", done: "Готово", cancelled: "Отменено" }[status] ?? status;
+    },
+
+    statusBadgeClass(status) {
+      return {
+        todo:        "bg-gray-100 text-gray-600",
+        in_progress: "bg-blue-100 text-blue-700",
+        done:        "bg-green-100 text-green-700",
+        cancelled:   "bg-red-100 text-red-600",
+      }[status] ?? "bg-gray-100 text-gray-600";
     },
 
     async submitNewProject() {
